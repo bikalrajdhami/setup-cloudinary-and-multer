@@ -120,7 +120,55 @@ async function deletePost(req, res) {
        return HandleError(res,error)
     }
 }
- 
 
 
-module.exports ={getPost, createPost,getPostById,deletePost }
+
+async function updatePost(req,res){
+    try {
+        const {id} = req.params
+        const creator =req.user
+        const {title, description,draft} = req.body;
+        const post = await Post.findById(id)
+        if(!post){
+            return res.status(404).json({success:false, message:"Post not found"})
+
+        }
+        if(creator !== post.creator.toString()){
+            return res.status(403).json({success:false, message:"You can only update your own account"})
+        }
+       await Post.updateOne({_id:id},{title, description, draft})
+       const updatePost = await Post.findById(id)
+       return res.status(200).json({
+        success:true,
+        message:"Post Update Successfully",
+        posts: updatepost
+       });
+        
+    } catch (error) {
+        return HandleError(res,error);
+    }
+
+}
+
+async function likePost(req,res){
+  try {
+    const {id} = req.params
+    const creator =req.user
+    const post = await Post.findById(id)
+    if(!post){
+        return res.status(404).json({success:false, message:"Post not found"});
+    }
+    if(!post.likes.includes(creator)){
+        await Post.findByIdAndUpdate(id,{ $push:{likes:creator}});
+        return res.status(200).json({success:true, message:"Post Liked Successfully"});
+
+    }else{
+        await Post.findByIdAndUpdate(id,{$pull:{likes:creator}});
+        return res.status(200).json({success:true, message:"Post Un-Liked Succesfully"});
+    }
+    
+  } catch (error) {
+    return HandleError(res, error)
+  }
+}
+module.exports ={getPost, createPost,getPostById,deletePost, updatePost, likePost }
