@@ -120,5 +120,7 @@ async function deletePost(req, res) {
        return HandleError(res,error)
     }
 }
+ 
+
 
 module.exports ={getPost, createPost,getPostById,deletePost }
