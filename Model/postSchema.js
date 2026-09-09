@@ -10,6 +10,21 @@ const postSchema =new mongoose.Schema({
         unique:true,
         required: true
     },
+      imageUrl:{
+        type: String,
+        unique:true,
+        required: true
+    },
+      imageId:{
+        type: String,
+        unique:true,
+        required: true
+    },
+    postId:{
+        type:String,
+        required:true
+
+    },
      draft:{
         type: Boolean,
         required: false
