@@ -1,7 +1,9 @@
 const User = require("../Model/userSchema");
-const { generateJWT } = require("../Utils/generateToken");
+const { generateJWT, verifyJWT } = require("../Utils/generateToken");
 const HandleError = require("../Utils/handleError");
 const bcrypt = require("bcrypt");
+const { sendVerificationEmail, sendResetPasswordEmail } = require("../Utils/sendEmail");
+
 
 async function getUser(req, res) {
 try {
@@ -32,13 +34,28 @@ async function createUser(req, res){
         }
         
        const checkforexitUser = await User.findOne({email})
-
+   
        if(checkforexitUser){
+          if(checkforexitUser.verify){
+
         return res.status(400).json({
             success:false,
             message:"User already registered with this email"
-        })
-       }
+        });
+    }else{
+          let token = await generateJWT({
+    id: checkforexitUser._id,
+    email:checkforexitUser.email,
+})
+await sendVerificationEmail(checkforexitUser.email, token)
+
+       return res.status(200).json({
+        success:true,
+        message:"Please check your Email to verify your account",
+       
+       });
+    }
+}
 let hashPassword = await bcrypt.hash(password, 10);
 
 const newUser = await User.create({
@@ -46,10 +63,15 @@ const newUser = await User.create({
   email,
   password: hashPassword
 });
+let token = await generateJWT({
+    id: newUser._id,
+    email:newUser.email,
+})
+await sendVerificationEmail(newUser.email, token)
 
        return res.status(200).json({
         success:true,
-        message:"user create sucessfully",
+        message:"Please check your Email to verify your account",
         users: newUser
        });
         
@@ -79,6 +101,14 @@ async function userlogin(req, res){
             message:"Not Register"
         })
        }
+       let token = await generateJWT({id: checkforexitUser._id,email:checkforexitUser.email})
+       if(!checkforexitUser.verify){
+           await sendVerificationEmail(checkforexitUser.email, token)
+        return res.status(200).json({
+            success:true,
+            message:"Please check Your Email to verify your account"
+        });
+    }
         let hashPassword = await bcrypt.compare(password, checkforexitUser.password)
     if(!hashPassword){
         return res.status(400).json({
@@ -87,7 +117,7 @@ async function userlogin(req, res){
 
         });
     }
-        let token =await generateJWT({email:checkforexitUser.email, id:checkforexitUser._id})
+        // let token =await generateJWT({email:checkforexitUser.email, id:checkforexitUser._id})
        return res.status(200).json({
         success:true,
         message:"user login sucessfully",
@@ -206,4 +236,58 @@ async function updateuser(req, res) {
         return HandleError(res, error);
     }
 }
-module.exports={getUser, createUser, getByUser, deleteuser, updateuser, userlogin}
+
+async function verifyToken(req, res) {
+    try {
+        const { verificationToken } = req.params;
+        const token= await verifyJWT(verificationToken)
+
+        if (!token) {
+            return res.status(404).json({
+                success: false,
+                message: "Invalid Token/ Email Expired"
+            });
+        }
+        const {id}=token
+        const user = await User.findById(id)
+      if(!user){
+       return res.status(404).json({success: false, message:"User not found"})
+      }
+      await User.updateOne({_id:id}, {verify:true})
+      return res.status(200).json({
+        success:true,
+        message:"Email verified successfully!",
+      });
+      
+    } catch (error) {
+        return HandleError(res, error);
+    }
+}
+
+async function forgotPassword(req, res) {
+    try {
+        const { email} = req.body;
+
+
+        if (!email) {
+            return res.status(404).json({
+                success: false,
+                message: "Email is required"
+            });
+        }
+        const user = await User.findOne({email})
+      if(!user){
+       return res.status(404).json({success: false, message:"User not found"})
+      }
+     let token = await generateJWT({email: user.email, id: user._id})
+     await sendResetPasswordEmail(user.email, token);
+      return res.status(200).json({
+        success:true,
+        message:"Password reset link sent to your email",
+      });
+      
+    } catch (error) {
+        return HandleError(res, error);
+    }
+}
+module.exports={getUser, createUser, getByUser, deleteuser, updateuser, userlogin, verifyToken,forgotPassword}
